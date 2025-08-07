@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>キャッチコピー投票アンケート</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Hiragino Kaku Gothic ProN', 'メイリオ', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .voting-section {
+            padding: 40px 30px;
+        }
+
+        .catchcopy-item {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .catchcopy-item:hover {
+            border-color: #4ECDC4;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(78, 205, 196, 0.2);
+        }
+
+        .catchcopy-item.selected {
+            border-color: #FF6B6B;
+            background-color: #fff5f5;
+        }
+
+        .catchcopy-text {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .catchcopy-description {
+            color: #666;
+            font-size: 1em;
+            line-height: 1.6;
+        }
+
+        .radio-input {
+            margin-right: 15px;
+            transform: scale(1.2);
+            accent-color: #FF6B6B;
+        }
+
+        .vote-button {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            display: block;
+            margin: 30px auto 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .vote-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .vote-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results-section {
+            padding: 30px;
+            background-color: #f8f9fa;
+            display: none;
+        }
+
+        .results-title {
+            font-size: 2em;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .result-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .result-text {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .result-bar {
+            background-color: #e1e8ed;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 30px;
+            position: relative;
+        }
+
+        .result-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            transition: width 0.8s ease;
+        }
+
+        .result-percentage {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            font-weight: bold;
+            color: #333;
+        }
+
+        .vote-count {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .reset-button {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1em;
+            border-radius: 25px;
+            cursor: pointer;
+            display: block;
+            margin: 20px auto 0;
+            transition: all 0.3s ease;
+        }
+
+        .reset-button:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗳️ キャッチコピー投票</h1>
+            <p>気に入ったキャッチコピーに1票投じてください</p>
+        </div>
+
+        <div class="voting-section" id="votingSection">
+            <form id="votingForm">
+                <div class="catchcopy-item" onclick="selectOption(1)">
+                    <input type="radio" name="catchcopy" value="1" id="option1" class="radio-input">
+                    <label for="option1">
+                        <div class="catchcopy-text">「2025年はバブキャンで飛躍！」</div>
+                        <div class="catchcopy-description">新しい年への希望と成長への意気込みを表現</div>
+                    </label>
+                </div>
+
+                <div class="catchcopy-item" onclick="selectOption(2)">
+                    <input type="radio" name="catchcopy" value="2" id="option2" class="radio-input">
+                    <label for="option2">
+                        <div class="catchcopy-text">「バブキャンで熱い夏を！」</div>
+                        <div class="catchcopy-description">夏の情熱と活気に満ちた体験への誘い</div>
+                    </label>
+                </div>
+
+                <div class="catchcopy-item" onclick="selectOption(3)">
+                    <input type="radio" name="catchcopy" value="3" id="option3" class="radio-input">
+                    <label for="option3">
+                        <div class="catchcopy-text">「未来に触れてみませんか？」</div>
+                        <div class="catchcopy-description">未来への好奇心を刺激する優しい問いかけ</div>
+                    </label>
+                </div>
+
+                <button type="submit" class="vote-button" id="voteButton">投票する</button>
+            </form>
+
+            <div id="statusMessage" class="status-message" style="display: none;"></div>
+        </div>
+
+        <div class="results-section" id="resultsSection">
+            <h2 class="results-title">📊 投票結果</h2>
+            <div id="resultsContainer"></div>
+            <div class="vote-count" id="totalVotes"></div>
+            <button class="reset-button" onclick="resetVoting()">投票をリセット</button>
+        </div>
+    </div>
+
+    <script>
+        const catchcopyData = {
+            1: { text: "2025年はバブキャンで飛躍！", description: "新しい年への希望と成長への意気込みを表現" },
+            2: { text: "バブキャンで熱い夏を！", description: "夏の情熱と活気に満ちた体験への誘い" },
+            3: { text: "未来に触れてみませんか？", description: "未来への好奇心を刺激する優しい問いかけ" }
+        };
+
+        let votingData = JSON.parse(localStorage.getItem('votingData')) || {};
+        let hasVoted = localStorage.getItem('hasVoted') === 'true';
+
+        function selectOption(optionId) {
+            const radioInput = document.getElementById(`option${optionId}`);
+            radioInput.checked = true;
+            
+            document.querySelectorAll('.catchcopy-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            event.currentTarget.classList.add('selected');
+        }
+
+        function showMessage(message, isError = false) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message ${isError ? 'error' : 'success'}`;
+            statusMessage.style.display = 'block';
+            
+            setTimeout(() => {
+                statusMessage.style.display = 'none';
+            }, 3000);
+        }
+
+        function submitVote() {
+            if (hasVoted) {
+                showMessage('すでに投票済みです。1人1回まで投票可能です。', true);
+                return false;
+            }
+
+            const selectedOption = document.querySelector('input[name="catchcopy"]:checked');
+            
+            if (!selectedOption) {
+                showMessage('キャッチコピーを選択してください。', true);
+                return false;
+            }
+
+            const optionValue = selectedOption.value;
+            
+            if (!votingData[optionValue]) {
+                votingData[optionValue] = 0;
+            }
+            votingData[optionValue]++;
+
+            localStorage.setItem('votingData', JSON.stringify(votingData));
+            localStorage.setItem('hasVoted', 'true');
+            hasVoted = true;
+
+            showMessage('投票ありがとうございました！');
+            
+            setTimeout(() => {
+                showResults();
+            }, 1500);
+
+            return false;
+        }
+
+        function showResults() {
+            document.getElementById('votingSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'block';
+
+            const resultsContainer = document.getElementById('resultsContainer');
+            const totalVotesElement = document.getElementById('totalVotes');
+
+            const totalVotes = Object.values(votingData).reduce((sum, count) => sum + count, 0);
+
+            let resultsHTML = '';
+            
+            const sortedResults = Object.entries(votingData)
+                .map(([id, count]) => ({ id, count, percentage: totalVotes > 0 ? (count / totalVotes * 100).toFixed(1) : 0 }))
+                .sort((a, b) => b.count - a.count);
+
+            sortedResults.forEach(({ id, count, percentage }) => {
+                const data = catchcopyData[id];
+                resultsHTML += `
+                    <div class="result-item">
+                        <div class="result-text">${data.text}</div>
+                        <div class="result-bar">
+                            <div class="result-fill" style="width: ${percentage}%"></div>
+                            <div class="result-percentage">${count}票 (${percentage}%)</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            Object.keys(catchcopyData).forEach(id => {
+                if (!votingData[id]) {
+                    const data = catchcopyData[id];
+                    resultsHTML += `
+                        <div class="result-item">
+                            <div class="result-text">${data.text}</div>
+                            <div class="result-bar">
+                                <div class="result-fill" style="width: 0%"></div>
+                                <div class="result-percentage">0票 (0%)</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            resultsContainer.innerHTML = resultsHTML;
+            totalVotesElement.textContent = `総投票数: ${totalVotes}票`;
+        }
+
+        function resetVoting() {
+            if (confirm('すべての投票データをリセットしますか？この操作は取り消せません。')) {
+                localStorage.removeItem('votingData');
+                localStorage.removeItem('hasVoted');
+                location.reload();
+            }
+        }
+
+        document.getElementById('votingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitVote();
+        });
+
+        if (hasVoted) {
+            document.getElementById('voteButton').disabled = true;
+            document.getElementById('voteButton').textContent = '投票済み';
+            showMessage('すでに投票済みです。結果を確認するには下のボタンをクリックしてください。', true);
+            
+            const showResultsBtn = document.createElement('button');
+            showResultsBtn.textContent = '結果を見る';
+            showResultsBtn.className = 'vote-button';
+            showResultsBtn.onclick = showResults;
+            document.getElementById('votingForm').appendChild(showResultsBtn);
+        }
+    </script>
+</body>
+</html>
