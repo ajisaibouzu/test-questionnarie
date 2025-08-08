@@ -167,7 +167,7 @@
 
         .vote-count {
             text-align: center;
-            margin-top: 20px;
+            margin: 25px 0;
             font-size: 1.2em;
             color: #666;
         }
@@ -204,23 +204,6 @@
             border: 1px solid #bee5eb;
         }
 
-        .global-indicator {
-            background: linear-gradient(45deg, #28a745, #20c997);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-size: 0.9em;
-            display: inline-block;
-            margin-bottom: 20px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
-        }
-
-        .global-indicator::before {
-            content: "🌍";
-            margin-right: 8px;
-        }
-
         .refresh-button {
             background: #28a745;
             color: white;
@@ -232,13 +215,11 @@
             display: block;
             margin: 20px auto 0;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
         }
 
         .refresh-button:hover {
             background: #218838;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+            transform: translateY(-1px);
         }
 
         .reset-button {
@@ -259,57 +240,37 @@
         }
 
         .vote-info {
-            background: #e7f3ff;
+            background: #f8f9fa;
             padding: 20px;
             border-radius: 10px;
             margin: 20px 0;
             font-size: 0.95em;
             line-height: 1.6;
-            border: 2px solid #007bff;
+            border: 1px solid #dee2e6;
         }
 
         .vote-info h4 {
-            color: #007bff;
+            color: #495057;
             margin-bottom: 10px;
             font-size: 1.1em;
         }
 
-        .auto-sync {
-            background: #17a2b8;
-            color: white;
-            padding: 8px 15px;
-            border-radius: 15px;
-            font-size: 0.85em;
-            display: inline-block;
-            margin-bottom: 10px;
-        }
-
-        .auto-sync::before {
-            content: "⚡";
-            margin-right: 5px;
-        }
-
-        .participant-count {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-            text-align: center;
-            border: 1px solid #dee2e6;
-        }
-
-        .participant-count strong {
-            color: #007bff;
-            font-size: 1.2em;
-        }
-
-        .simulation-notice {
+        .no-votes-message {
             background: #fff3cd;
             color: #856404;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            border: 1px solid #ffeaa7;
+        }
+
+        .sharing-info {
+            background: #e7f3ff;
             padding: 15px;
             border-radius: 8px;
             margin: 15px 0;
-            border: 1px solid #ffeaa7;
+            border: 1px solid #b3d4fc;
             font-size: 0.9em;
         }
     </style>
@@ -323,9 +284,8 @@
 
         <div class="voting-section" id="votingSection">
             <div class="vote-info">
-                <h4>🌐 グローバル投票システム</h4>
-                <div class="auto-sync">自動同期有効</div>
-                <p><strong>みんなの投票結果を自動表示：</strong> あなたが投票すると、他の人の投票も含めた全体の結果が自動的に表示されます。コード入力などの面倒な手続きは一切不要です。</p>
+                <h4>📊 投票について</h4>
+                <p><strong>正確な結果表示：</strong> このシステムは実際の投票のみをカウントします。あなたの投票は確実に記録され、正確な結果が表示されます。</p>
             </div>
 
             <form id="votingForm">
@@ -360,24 +320,19 @@
         </div>
 
         <div class="results-section" id="resultsSection">
-            <div class="global-indicator">全参加者の投票結果</div>
-            <h2 class="results-title">📊 リアルタイム集計結果</h2>
-            
-            <div class="participant-count" id="participantInfo">
-                <strong id="participantCount">0</strong> 人が投票に参加しました
-            </div>
+            <h2 class="results-title">📊 投票結果</h2>
             
             <div id="resultsContainer"></div>
             <div class="vote-count" id="totalVotes"></div>
 
-            <div class="simulation-notice">
-                <strong>📝 システム説明：</strong> このデモでは、新しい投票者が加わるごとにランダムな投票データが自動生成され、リアルな多人数投票を体験できます。実際の運用では、各ユーザーの投票データがリアルタイムで同期されます。
+            <div class="sharing-info">
+                <strong>💡 他の人の投票を集計するには:</strong><br>
+                このページのURLを他の人に共有してください。各人が投票すると、そのブラウザに投票データが保存されます。
+                現在は各ブラウザで独立して動作するため、他の人の投票結果を見るには、同じデバイス・ブラウザで投票してもらう必要があります。
             </div>
             
-            <button class="refresh-button" id="refreshButton">🔄 最新データを更新</button>
-            <br>
             <button class="refresh-button" onclick="showVoting()">投票画面に戻る</button>
-            <button class="reset-button" onclick="resetAll()">データをリセット</button>
+            <button class="reset-button" onclick="resetAll()">投票データをリセット</button>
         </div>
     </div>
 
@@ -388,12 +343,10 @@
             3: { text: "未来に触れてみませんか？", description: "未来への好奇心を刺激する優しい問いかけ" }
         };
 
-        // グローバル投票データ管理
-        let globalVotingData = JSON.parse(localStorage.getItem('globalVotingData')) || { "1": 0, "2": 0, "3": 0 };
-        let totalParticipants = parseInt(localStorage.getItem('totalParticipants')) || 0;
+        // 実際の投票データのみ管理
+        let votingData = JSON.parse(localStorage.getItem('votingData')) || { "1": 0, "2": 0, "3": 0 };
         let hasVoted = localStorage.getItem('hasVoted') === 'true';
         let myVote = localStorage.getItem('myVote');
-        let lastUpdateTime = parseInt(localStorage.getItem('lastUpdateTime')) || 0;
 
         function selectOption(optionId) {
             const radioInput = document.getElementById(`option${optionId}`);
@@ -419,17 +372,6 @@
             }
         }
 
-        function generateRandomVotes() {
-            // 他の人の投票をシミュレーション（1-3人のランダム投票を追加）
-            const newVoters = Math.floor(Math.random() * 3) + 1;
-            
-            for (let i = 0; i < newVoters; i++) {
-                const randomChoice = Math.floor(Math.random() * 3) + 1;
-                globalVotingData[randomChoice.toString()]++;
-                totalParticipants++;
-            }
-        }
-
         function submitVote() {
             if (hasVoted) {
                 showMessage('すでに投票済みです。1人1回まで投票可能です。', 'error');
@@ -444,33 +386,26 @@
             }
 
             const optionValue = selectedOption.value;
-            showMessage('投票を処理中... 他の参加者のデータも取得しています', 'loading');
+            showMessage('投票を処理しています...', 'loading');
 
             try {
-                // 自分の投票を記録
-                globalVotingData[optionValue]++;
-                totalParticipants++;
-                
-                // デモ用：他の人の投票をシミュレーション
-                generateRandomVotes();
+                // 実際の投票のみを記録
+                votingData[optionValue] = (votingData[optionValue] || 0) + 1;
                 
                 // データを保存
-                localStorage.setItem('globalVotingData', JSON.stringify(globalVotingData));
-                localStorage.setItem('totalParticipants', totalParticipants.toString());
+                localStorage.setItem('votingData', JSON.stringify(votingData));
                 localStorage.setItem('hasVoted', 'true');
                 localStorage.setItem('myVote', optionValue);
-                localStorage.setItem('lastUpdateTime', new Date().getTime().toString());
                 
                 hasVoted = true;
                 myVote = optionValue;
-                lastUpdateTime = new Date().getTime();
                 
-                showMessage('✅ 投票完了！全参加者の結果を表示しています', 'success');
+                showMessage('投票完了！ありがとうございました！', 'success');
                 
                 setTimeout(() => {
                     displayResults();
                     showResults();
-                }, 2000);
+                }, 1500);
                 
             } catch (error) {
                 console.error('Vote error:', error);
@@ -480,32 +415,27 @@
             return false;
         }
 
-        function simulateNewVotes() {
-            // 定期的に新しい投票をシミュレーション（5%の確率）
-            if (Math.random() < 0.05) {
-                const randomChoice = Math.floor(Math.random() * 3) + 1;
-                globalVotingData[randomChoice.toString()]++;
-                totalParticipants++;
-                
-                localStorage.setItem('globalVotingData', JSON.stringify(globalVotingData));
-                localStorage.setItem('totalParticipants', totalParticipants.toString());
-                
-                return true;
-            }
-            return false;
-        }
-
         function displayResults() {
             const resultsContainer = document.getElementById('resultsContainer');
             const totalVotesElement = document.getElementById('totalVotes');
-            const participantCountElement = document.getElementById('participantCount');
 
-            const totalVotes = Object.values(globalVotingData).reduce((sum, count) => sum + count, 0);
+            const totalVotes = Object.values(votingData).reduce((sum, count) => sum + count, 0);
+
+            if (totalVotes === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="no-votes-message">
+                        <h3>📊 投票がまだありません</h3>
+                        <p>最初の投票者になってください！他の人にもこのページを共有して投票してもらいましょう。</p>
+                    </div>
+                `;
+                totalVotesElement.textContent = '総投票数: 0票';
+                return;
+            }
 
             let resultsHTML = '';
             
             // 結果を票数順にソート
-            const sortedResults = Object.entries(globalVotingData)
+            const sortedResults = Object.entries(votingData)
                 .map(([id, count]) => ({ 
                     id, 
                     count, 
@@ -515,23 +445,42 @@
                 .sort((a, b) => b.count - a.count);
 
             sortedResults.forEach(({ id, count, percentage, data }, index) => {
-                const isMyVote = myVote === id ? ' 👈 あなたの投票' : '';
-                const rankIcon = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
-                
-                resultsHTML += `
-                    <div class="result-item">
-                        <div class="result-text">${rankIcon} ${data.text}${isMyVote}</div>
-                        <div class="result-bar">
-                            <div class="result-fill" style="width: ${percentage}%"></div>
-                            <div class="result-percentage">${count}票 (${percentage}%)</div>
+                if (count > 0) { // 0票の項目は表示しない
+                    const isMyVote = myVote === id ? ' 👈 あなたの投票' : '';
+                    const rankIcon = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                    
+                    resultsHTML += `
+                        <div class="result-item">
+                            <div class="result-text">${rankIcon} ${data.text}${isMyVote}</div>
+                            <div class="result-bar">
+                                <div class="result-fill" style="width: ${percentage}%"></div>
+                                <div class="result-percentage">${count}票 (${percentage}%)</div>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
+            });
+
+            // 0票の項目があれば最後に表示
+            Object.keys(catchcopyData).forEach(id => {
+                if (votingData[id] === 0 || !votingData[id]) {
+                    const data = catchcopyData[id];
+                    const isMyVote = myVote === id ? ' 👈 あなたの投票' : '';
+                    
+                    resultsHTML += `
+                        <div class="result-item">
+                            <div class="result-text">${data.text}${isMyVote}</div>
+                            <div class="result-bar">
+                                <div class="result-fill" style="width: 0%"></div>
+                                <div class="result-percentage">0票 (0%)</div>
+                            </div>
+                        </div>
+                    `;
+                }
             });
 
             resultsContainer.innerHTML = resultsHTML;
             totalVotesElement.textContent = `総投票数: ${totalVotes}票`;
-            participantCountElement.textContent = totalParticipants;
         }
 
         function showResults() {
@@ -544,35 +493,10 @@
             document.getElementById('votingSection').style.display = 'block';
         }
 
-        function refreshResults() {
-            showMessage('🔄 最新データを取得中...', 'loading');
-            
-            // 新しい投票をシミュレーション
-            let hasNewVotes = false;
-            const newVotes = Math.floor(Math.random() * 2); // 0-1人の新規投票
-            
-            for (let i = 0; i < newVotes; i++) {
-                const randomChoice = Math.floor(Math.random() * 3) + 1;
-                globalVotingData[randomChoice.toString()]++;
-                totalParticipants++;
-                hasNewVotes = true;
-            }
-            
-            if (hasNewVotes) {
-                localStorage.setItem('globalVotingData', JSON.stringify(globalVotingData));
-                localStorage.setItem('totalParticipants', totalParticipants.toString());
-                displayResults();
-                showMessage(`✨ ${newVotes}人の新しい投票を取得しました！`, 'success');
-            } else {
-                showMessage('📊 最新データです。新しい投票はありませんでした。', 'info');
-            }
-        }
-
         function resetAll() {
-            if (confirm('⚠️ すべてのデータをリセットしますか？この操作は取り消せません。')) {
+            if (confirm('⚠️ すべての投票データをリセットしますか？この操作は取り消せません。')) {
                 localStorage.clear();
-                globalVotingData = { "1": 0, "2": 0, "3": 0 };
-                totalParticipants = 0;
+                votingData = { "1": 0, "2": 0, "3": 0 };
                 hasVoted = false;
                 myVote = null;
                 
@@ -589,32 +513,14 @@
             submitVote();
         });
 
-        document.getElementById('refreshButton').addEventListener('click', function(e) {
-            e.preventDefault();
-            refreshResults();
-        });
-
         // ページ読み込み時の処理
         document.addEventListener('DOMContentLoaded', function() {
-            // 初期データ生成（初回のみ）
-            if (totalParticipants === 0 && !hasVoted) {
-                // デモ用の初期データを生成
-                const initialVotes = Math.floor(Math.random() * 5) + 2; // 2-6票
-                for (let i = 0; i < initialVotes; i++) {
-                    const randomChoice = Math.floor(Math.random() * 3) + 1;
-                    globalVotingData[randomChoice.toString()]++;
-                    totalParticipants++;
-                }
-                localStorage.setItem('globalVotingData', JSON.stringify(globalVotingData));
-                localStorage.setItem('totalParticipants', totalParticipants.toString());
-            }
-
             displayResults();
 
             if (hasVoted) {
                 document.getElementById('voteButton').disabled = true;
                 document.getElementById('voteButton').textContent = '投票済み';
-                showMessage('✅ すでに投票済みです。全体の結果をご確認ください。', 'info');
+                showMessage('すでに投票済みです。結果を確認するには下のボタンをクリックしてください。', 'info');
                 
                 const showResultsBtn = document.createElement('button');
                 showResultsBtn.textContent = '結果を見る';
@@ -624,23 +530,6 @@
                 document.getElementById('votingForm').appendChild(showResultsBtn);
             }
         });
-
-        // 自動更新（30秒ごと）
-        setInterval(() => {
-            if (document.getElementById('resultsSection').style.display === 'block') {
-                if (simulateNewVotes()) {
-                    displayResults();
-                }
-            }
-        }, 30000);
-
-        // 5秒ごとの軽微な更新チェック
-        setInterval(() => {
-            if (document.getElementById('resultsSection').style.display === 'block') {
-                simulateNewVotes();
-                displayResults();
-            }
-        }, 5000);
     </script>
 </body>
 </html>
