@@ -253,16 +253,20 @@
             font-family: monospace;
             word-break: break-all;
             margin: 10px 0;
+            font-size: 0.85em;
+            max-height: 100px;
+            overflow-y: auto;
         }
 
         .copy-button {
             background: #007bff;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 12px 24px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 0.9em;
+            font-size: 1em;
+            margin: 5px;
         }
 
         .copy-button:hover {
@@ -311,6 +315,25 @@
             background: #c82333;
             transform: translateY(-1px);
         }
+
+        .url-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9em;
+            margin: 10px 0;
+        }
+
+        .share-instructions {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 0.9em;
+            color: #0066cc;
+        }
     </style>
 </head>
 <body>
@@ -322,7 +345,7 @@
 
         <div class="voting-section" id="votingSection">
             <div class="vote-info">
-                <strong>📋 投票について:</strong> あなたの投票は即座に反映され、URLを共有することで他の参加者の投票も確認できます。
+                <strong>📋 投票について:</strong> あなたの投票はすぐに反映され、共有URLから他の人の投票も見ることができます。
             </div>
 
             <form id="votingForm">
@@ -366,9 +389,15 @@
             <button class="manual-sync" id="syncButton">他の投票者と同期</button>
             
             <div class="share-section">
-                <h3>投票URLを共有</h3>
-                <div class="share-url" id="shareUrl"></div>
-                <button class="copy-button" id="copyButton">URLをコピー</button>
+                <h3>🔗 投票URLを共有</h3>
+                <div class="share-instructions">
+                    <strong>使い方：</strong> 下のURLをコピーして他の人に送ってください。そのリンクから投票・結果確認ができます。
+                </div>
+                <input type="text" class="url-input" id="shareUrlInput" readonly>
+                <br>
+                <button class="copy-button" id="copyButton">📋 URLをコピー</button>
+                <button class="copy-button" id="selectButton">✂️ URLを選択</button>
+                <br>
                 <button class="reset-button" id="resetButton">投票データをリセット</button>
             </div>
 
@@ -377,15 +406,36 @@
     </div>
 
     <script>
+        const STORAGE_KEY = 'globalVoteData';
+        
         const catchcopyData = {
             1: { text: "2025年はバブキャンで飛躍！", description: "新しい年への希望と成長への意気込みを表現" },
             2: { text: "バブキャンで熱い夏を！", description: "夏の情熱と活気に満ちた体験への誘い" },
             3: { text: "未来に触れてみませんか？", description: "未来への好奇心を刺激する優しい問いかけ" }
         };
 
+        // グローバルデータの管理（localStorage + URLパラメータで共有）
+        let globalVotingData = { "1": 0, "2": 0, "3": 0 };
         let hasVoted = localStorage.getItem('hasVoted') === 'true';
-        let globalVotingData = JSON.parse(localStorage.getItem('globalVotingData')) || { "1": 0, "2": 0, "3": 0 };
         let myVote = localStorage.getItem('myVote');
+
+        function initializeVotingData() {
+            // まずローカルストレージから読み込み
+            const localData = localStorage.getItem(STORAGE_KEY);
+            if (localData) {
+                try {
+                    globalVotingData = JSON.parse(localData);
+                } catch (e) {
+                    console.error('Local storage data error:', e);
+                }
+            }
+            
+            // URLからデータを読み込んでマージ
+            loadDataFromUrl();
+            
+            // データを保存
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(globalVotingData));
+        }
 
         function selectOption(optionId) {
             const radioInput = document.getElementById(`option${optionId}`);
@@ -431,11 +481,10 @@
                 // 投票を記録
                 globalVotingData[optionValue] = (globalVotingData[optionValue] || 0) + 1;
                 
-                // ローカルストレージに保存
-                localStorage.setItem('globalVotingData', JSON.stringify(globalVotingData));
+                // 投票情報を保存
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(globalVotingData));
                 localStorage.setItem('hasVoted', 'true');
                 localStorage.setItem('myVote', optionValue);
-                localStorage.setItem('voteTimestamp', new Date().getTime().toString());
                 
                 hasVoted = true;
                 myVote = optionValue;
@@ -455,49 +504,63 @@
             return false;
         }
 
-        function updateUrlWithVoteData() {
+        function createShareUrl() {
             try {
-                const voteData = JSON.stringify(globalVotingData);
-                const encodedData = btoa(unescape(encodeURIComponent(voteData)));
-                const url = new URL(window.location.href.split('?')[0]);
-                url.searchParams.set('v', encodedData);
-                const newUrl = url.toString();
+                // 現在のURLベースを取得
+                const baseUrl = window.location.href.split('?')[0];
                 
-                // URLを更新
-                history.replaceState(null, '', newUrl);
-                return newUrl;
+                // 投票データをJSONで圧縮
+                const dataString = JSON.stringify(globalVotingData);
+                
+                // Base64でエンコード（URLセーフ）
+                const encodedData = btoa(dataString)
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+                
+                // URLを構築
+                return `${baseUrl}?data=${encodedData}`;
+                
             } catch (error) {
-                console.error('URL update error:', error);
+                console.error('URL creation error:', error);
                 return window.location.href;
             }
         }
 
-        function loadVotesFromUrl() {
+        function loadDataFromUrl() {
             try {
                 const urlParams = new URLSearchParams(window.location.search);
-                const encodedData = urlParams.get('v');
+                const encodedData = urlParams.get('data');
                 
                 if (encodedData) {
-                    const decodedData = decodeURIComponent(escape(atob(encodedData)));
-                    const urlVoteData = JSON.parse(decodedData);
+                    // Base64デコード
+                    let decodedString = encodedData
+                        .replace(/-/g, '+')
+                        .replace(/_/g, '/');
+                    
+                    // パディング追加
+                    while (decodedString.length % 4) {
+                        decodedString += '=';
+                    }
+                    
+                    const jsonString = atob(decodedString);
+                    const urlData = JSON.parse(jsonString);
                     
                     // データをマージ（より大きい値を採用）
                     let hasUpdates = false;
-                    for (let key in urlVoteData) {
-                        if (urlVoteData[key] > (globalVotingData[key] || 0)) {
-                            globalVotingData[key] = urlVoteData[key];
+                    for (let key in urlData) {
+                        if (urlData[key] > (globalVotingData[key] || 0)) {
+                            globalVotingData[key] = urlData[key];
                             hasUpdates = true;
                         }
                     }
                     
-                    if (hasUpdates) {
-                        localStorage.setItem('globalVotingData', JSON.stringify(globalVotingData));
-                        return true;
-                    }
+                    return hasUpdates;
                 }
                 return false;
+                
             } catch (error) {
-                console.error('URL parsing error:', error);
+                console.error('URL data loading error:', error);
                 return false;
             }
         }
@@ -510,7 +573,7 @@
 
             let resultsHTML = '';
             
-            // すべてのキャッチコピーを表示（重複なし）
+            // すべてのキャッチコピーを順番に表示
             Object.keys(catchcopyData).forEach(id => {
                 const data = catchcopyData[id];
                 const count = globalVotingData[id] || 0;
@@ -535,15 +598,70 @@
         function showResults() {
             document.getElementById('votingSection').style.display = 'none';
             document.getElementById('resultsSection').style.display = 'block';
-            
-            // 共有URLを更新
-            const shareUrl = updateUrlWithVoteData();
-            document.getElementById('shareUrl').textContent = shareUrl;
+            updateShareUrl();
         }
 
         function showVoting() {
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('votingSection').style.display = 'block';
+        }
+
+        function updateShareUrl() {
+            const shareUrl = createShareUrl();
+            const shareUrlInput = document.getElementById('shareUrlInput');
+            if (shareUrlInput) {
+                shareUrlInput.value = shareUrl;
+            }
+        }
+
+        function copyToClipboard(text) {
+            // 方法1: 最新のClipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text).then(() => {
+                    showMessage('✅ URLをコピーしました！このURLを他の人に送ってください。', 'success');
+                    return true;
+                }).catch(() => {
+                    return fallbackCopy(text);
+                });
+            } else {
+                return fallbackCopy(text);
+            }
+        }
+
+        function fallbackCopy(text) {
+            // 方法2: フォールバック方法
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showMessage('✅ URLをコピーしました！このURLを他の人に送ってください。', 'success');
+                    return true;
+                } else {
+                    throw new Error('Copy command failed');
+                }
+            } catch (err) {
+                showMessage('❌ コピーに失敗しました。手動でURLを選択してコピーしてください。', 'error');
+                return false;
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+
+        function selectUrl() {
+            const shareUrlInput = document.getElementById('shareUrlInput');
+            if (shareUrlInput) {
+                shareUrlInput.focus();
+                shareUrlInput.select();
+                showMessage('💡 URLが選択されました。Ctrl+C (Mac: Cmd+C) でコピーしてください。', 'info');
+            }
         }
 
         // イベントリスナーの設定
@@ -553,47 +671,47 @@
         });
 
         document.getElementById('refreshButton').addEventListener('click', function() {
-            const updated = loadVotesFromUrl();
+            const updated = loadDataFromUrl();
+            if (updated) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(globalVotingData));
+            }
             displayResults();
-            showMessage(updated ? '最新データを取得しました！' : '新しいデータはありませんでした。', 'info');
+            updateShareUrl();
+            showMessage(updated ? '🔄 最新データを取得しました！' : 'ℹ️ 新しいデータはありませんでした。', 'info');
         });
 
         document.getElementById('syncButton').addEventListener('click', function() {
-            showMessage('他の投票者との同期を試行中...', 'loading');
-            const synced = loadVotesFromUrl();
+            showMessage('🔄 他の投票者との同期を実行中...', 'loading');
+            const synced = loadDataFromUrl();
+            if (synced) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(globalVotingData));
+            }
             displayResults();
-            updateUrlWithVoteData();
-            showMessage(synced ? '同期完了！最新の投票結果を表示中です。' : '新しいデータはありませんでした。', synced ? 'success' : 'info');
+            updateShareUrl();
+            showMessage(synced ? '✅ 同期完了！最新の投票結果を表示しています。' : 'ℹ️ 新しいデータはありませんでした。', synced ? 'success' : 'info');
         });
 
         document.getElementById('copyButton').addEventListener('click', function() {
-            const url = updateUrlWithVoteData();
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(url).then(() => {
-                    showMessage('投票URLをコピーしました！他の人と共有してください。', 'success');
-                }).catch(() => {
-                    showMessage('URLのコピーに失敗しました', 'error');
-                });
-            } else {
-                // フォールバック
-                const textArea = document.createElement('textarea');
-                textArea.value = url;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                showMessage('投票URLをコピーしました！', 'success');
-            }
+            const shareUrl = createShareUrl();
+            copyToClipboard(shareUrl);
+        });
+
+        document.getElementById('selectButton').addEventListener('click', function() {
+            selectUrl();
         });
 
         document.getElementById('resetButton').addEventListener('click', function() {
-            if (confirm('すべての投票データをリセットしますか？この操作は取り消せません。')) {
+            if (confirm('⚠️ すべての投票データをリセットしますか？この操作は取り消せません。')) {
                 localStorage.clear();
                 globalVotingData = { "1": 0, "2": 0, "3": 0 };
                 hasVoted = false;
                 myVote = null;
-                history.replaceState(null, '', window.location.href.split('?')[0]);
-                showMessage('投票データをリセットしました。', 'info');
+                
+                // URLからパラメータを削除
+                const baseUrl = window.location.href.split('?')[0];
+                history.replaceState(null, '', baseUrl);
+                
+                showMessage('🗑️ 投票データをリセットしました。', 'info');
                 setTimeout(() => {
                     window.location.reload();
                 }, 1500);
@@ -606,8 +724,8 @@
 
         // ページ読み込み時の処理
         document.addEventListener('DOMContentLoaded', function() {
-            // URLから投票データを読み込み
-            loadVotesFromUrl();
+            // 投票データを初期化
+            initializeVotingData();
             
             // 結果を表示
             displayResults();
@@ -615,7 +733,7 @@
             if (hasVoted) {
                 document.getElementById('voteButton').disabled = true;
                 document.getElementById('voteButton').textContent = '投票済み';
-                showMessage('すでに投票済みです。結果を確認するには下のボタンをクリックしてください。', 'info');
+                showMessage('ℹ️ すでに投票済みです。結果を確認するには下のボタンをクリックしてください。', 'info');
                 
                 const showResultsBtn = document.createElement('button');
                 showResultsBtn.textContent = '結果を見る';
@@ -624,6 +742,9 @@
                 showResultsBtn.addEventListener('click', showResults);
                 document.getElementById('votingForm').appendChild(showResultsBtn);
             }
+            
+            // URLを更新
+            updateShareUrl();
         });
     </script>
 </body>
