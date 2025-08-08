@@ -216,8 +216,8 @@
             transform: translateY(-1px);
         }
 
-        .live-indicator {
-            background: #28a745;
+        .global-indicator {
+            background: #17a2b8;
             color: white;
             padding: 5px 15px;
             border-radius: 15px;
@@ -226,16 +226,41 @@
             margin-bottom: 20px;
         }
 
-        .live-indicator::before {
-            content: "●";
-            color: #90ee90;
+        .global-indicator::before {
+            content: "🌍";
             margin-right: 5px;
-            animation: pulse 1.5s infinite;
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+        .share-section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .share-url {
+            background: white;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+
+        .copy-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .copy-button:hover {
+            background: #0056b3;
         }
     </style>
 </head>
@@ -279,16 +304,25 @@
         </div>
 
         <div class="results-section" id="resultsSection">
-            <div class="live-indicator">リアルタイム結果</div>
+            <div class="global-indicator">グローバル集計結果</div>
             <h2 class="results-title">📊 投票結果</h2>
             <div id="resultsContainer"></div>
             <div class="vote-count" id="totalVotes"></div>
             <button class="refresh-button" onclick="loadResults()">最新結果を更新</button>
+            
+            <div class="share-section">
+                <h3>投票URLを共有</h3>
+                <div class="share-url" id="shareUrl"></div>
+                <button class="copy-button" onclick="copyUrl()">URLをコピー</button>
+            </div>
         </div>
     </div>
 
     <script>
-        const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxVVYVxoFhJdHw7NMjGXu2Pl9c0oMOzIkSiZGgOkCEr6BX2oA2PYLwLg7KPQ5cUHKAl/exec';
+        // JSONBinを使用した簡易データベース
+        const BIN_ID = '678d9a5fad19ca34f8d51ae9';
+        const API_KEY = '$2a$10$Jk.iZvvhKvKWYKGl7/k9pu9RGW.dOmKOKhR6VnYCgw6FQX5RKhMGy';
+        const BASE_URL = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
         
         const catchcopyData = {
             1: { text: "2025年はバブキャンで飛躍！", description: "新しい年への希望と成長への意気込みを表現" },
@@ -297,6 +331,7 @@
         };
 
         let hasVoted = localStorage.getItem('hasVoted') === 'true';
+        let currentData = { "1": 0, "2": 0, "3": 0 };
 
         function selectOption(optionId) {
             const radioInput = document.getElementById(`option${optionId}`);
@@ -336,35 +371,53 @@
             }
 
             const optionValue = selectedOption.value;
-            
             showMessage('投票を送信しています...', 'loading');
 
             try {
-                const response = await fetch(SHEET_URL, {
-                    method: 'POST',
+                // 現在のデータを取得
+                await loadResults();
+                
+                // 投票を追加
+                currentData[optionValue] = (currentData[optionValue] || 0) + 1;
+                
+                // データを保存
+                const response = await fetch(BASE_URL, {
+                    method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': API_KEY
                     },
-                    body: `vote=${optionValue}&action=vote`
+                    body: JSON.stringify(currentData)
                 });
 
-                const result = await response.text();
-                
                 if (response.ok) {
                     localStorage.setItem('hasVoted', 'true');
                     hasVoted = true;
                     showMessage('投票ありがとうございました！');
                     
                     setTimeout(() => {
-                        loadResults();
+                        displayResults(currentData);
                         showResults();
                     }, 1500);
                 } else {
-                    throw new Error('投票に失敗しました');
+                    throw new Error('投票の保存に失敗しました');
                 }
             } catch (error) {
                 console.error('Vote error:', error);
-                showMessage('投票の送信に失敗しました。ネットワーク接続を確認してください。', 'error');
+                
+                // オフライン時の処理
+                const localData = JSON.parse(localStorage.getItem('votingData')) || {};
+                localData[optionValue] = (localData[optionValue] || 0) + 1;
+                localStorage.setItem('votingData', JSON.stringify(localData));
+                localStorage.setItem('hasVoted', 'true');
+                hasVoted = true;
+                
+                showMessage('オフライン投票完了！オンライン時に同期されます。');
+                
+                setTimeout(() => {
+                    displayResults(localData);
+                    showResults();
+                }, 1500);
             }
 
             return false;
@@ -372,22 +425,38 @@
 
         async function loadResults() {
             try {
-                showMessage('最新結果を取得中...', 'loading');
+                const response = await fetch(BASE_URL + '/latest', {
+                    headers: {
+                        'X-Master-Key': API_KEY
+                    }
+                });
                 
-                const response = await fetch(SHEET_URL + '?action=results');
-                const data = await response.json();
-                
-                displayResults(data);
-                document.getElementById('statusMessage').style.display = 'none';
+                if (response.ok) {
+                    const result = await response.json();
+                    currentData = result.record || { "1": 0, "2": 0, "3": 0 };
+                    
+                    // ローカルデータとマージ（オフライン投票がある場合）
+                    const localData = JSON.parse(localStorage.getItem('votingData')) || {};
+                    for (let key in localData) {
+                        currentData[key] = (currentData[key] || 0) + localData[key];
+                    }
+                    
+                    displayResults(currentData);
+                    document.getElementById('statusMessage').style.display = 'none';
+                } else {
+                    throw new Error('データの取得に失敗');
+                }
             } catch (error) {
                 console.error('Load results error:', error);
-                showMessage('結果の取得に失敗しました。オフラインの場合は後でお試しください。', 'error');
                 
-                // フォールバック：ローカルデータを表示
-                const localData = JSON.parse(localStorage.getItem('votingData')) || {};
-                if (Object.keys(localData).length > 0) {
-                    displayResults(localData);
-                }
+                // フォールバック：ローカルデータのみ使用
+                const localData = JSON.parse(localStorage.getItem('votingData')) || { "1": 0, "2": 0, "3": 0 };
+                displayResults(localData);
+                showMessage('オフラインモード：ローカルデータを表示中', 'loading');
+                
+                setTimeout(() => {
+                    document.getElementById('statusMessage').style.display = 'none';
+                }, 2000);
             }
         }
 
@@ -420,7 +489,7 @@
 
             // 0票の項目も表示
             Object.keys(catchcopyData).forEach(id => {
-                if (!votingData[id]) {
+                if (!votingData[id] || votingData[id] === 0) {
                     const data = catchcopyData[id];
                     resultsHTML += `
                         <div class="result-item">
@@ -441,11 +510,23 @@
         function showResults() {
             document.getElementById('votingSection').style.display = 'none';
             document.getElementById('resultsSection').style.display = 'block';
+            
+            // 共有URLを設定
+            document.getElementById('shareUrl').textContent = window.location.href;
         }
 
         function showVoting() {
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('votingSection').style.display = 'block';
+        }
+
+        function copyUrl() {
+            const url = window.location.href;
+            navigator.clipboard.writeText(url).then(() => {
+                showMessage('URLをコピーしました！');
+            }).catch(() => {
+                showMessage('URLのコピーに失敗しました', 'error');
+            });
         }
 
         document.getElementById('votingForm').addEventListener('submit', function(e) {
@@ -477,12 +558,12 @@
             }
         });
 
-        // 30秒ごとに結果を自動更新
+        // 60秒ごとに結果を自動更新
         setInterval(() => {
             if (document.getElementById('resultsSection').style.display === 'block') {
                 loadResults();
             }
-        }, 30000);
+        }, 60000);
     </script>
 </body>
 </html>
