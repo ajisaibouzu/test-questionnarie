@@ -192,8 +192,14 @@
             border: 1px solid #f5c6cb;
         }
 
-        .reset-button {
-            background: #6c757d;
+        .loading {
+            background-color: #cce7ff;
+            color: #004085;
+            border: 1px solid #b3d4fc;
+        }
+
+        .refresh-button {
+            background: #28a745;
             color: white;
             border: none;
             padding: 10px 20px;
@@ -205,9 +211,31 @@
             transition: all 0.3s ease;
         }
 
-        .reset-button:hover {
-            background: #5a6268;
+        .refresh-button:hover {
+            background: #218838;
             transform: translateY(-1px);
+        }
+
+        .live-indicator {
+            background: #28a745;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .live-indicator::before {
+            content: "●";
+            color: #90ee90;
+            margin-right: 5px;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
     </style>
 </head>
@@ -251,21 +279,23 @@
         </div>
 
         <div class="results-section" id="resultsSection">
+            <div class="live-indicator">リアルタイム結果</div>
             <h2 class="results-title">📊 投票結果</h2>
             <div id="resultsContainer"></div>
             <div class="vote-count" id="totalVotes"></div>
-            <button class="reset-button" onclick="resetVoting()">投票をリセット</button>
+            <button class="refresh-button" onclick="loadResults()">最新結果を更新</button>
         </div>
     </div>
 
     <script>
+        const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxVVYVxoFhJdHw7NMjGXu2Pl9c0oMOzIkSiZGgOkCEr6BX2oA2PYLwLg7KPQ5cUHKAl/exec';
+        
         const catchcopyData = {
             1: { text: "2025年はバブキャンで飛躍！", description: "新しい年への希望と成長への意気込みを表現" },
             2: { text: "バブキャンで熱い夏を！", description: "夏の情熱と活気に満ちた体験への誘い" },
             3: { text: "未来に触れてみませんか？", description: "未来への好奇心を刺激する優しい問いかけ" }
         };
 
-        let votingData = JSON.parse(localStorage.getItem('votingData')) || {};
         let hasVoted = localStorage.getItem('hasVoted') === 'true';
 
         function selectOption(optionId) {
@@ -279,54 +309,89 @@
             event.currentTarget.classList.add('selected');
         }
 
-        function showMessage(message, isError = false) {
+        function showMessage(message, type = 'success') {
             const statusMessage = document.getElementById('statusMessage');
             statusMessage.textContent = message;
-            statusMessage.className = `status-message ${isError ? 'error' : 'success'}`;
+            statusMessage.className = `status-message ${type}`;
             statusMessage.style.display = 'block';
             
-            setTimeout(() => {
-                statusMessage.style.display = 'none';
-            }, 3000);
+            if (type !== 'loading') {
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, 4000);
+            }
         }
 
-        function submitVote() {
+        async function submitVote() {
             if (hasVoted) {
-                showMessage('すでに投票済みです。1人1回まで投票可能です。', true);
+                showMessage('すでに投票済みです。1人1回まで投票可能です。', 'error');
                 return false;
             }
 
             const selectedOption = document.querySelector('input[name="catchcopy"]:checked');
             
             if (!selectedOption) {
-                showMessage('キャッチコピーを選択してください。', true);
+                showMessage('キャッチコピーを選択してください。', 'error');
                 return false;
             }
 
             const optionValue = selectedOption.value;
             
-            if (!votingData[optionValue]) {
-                votingData[optionValue] = 0;
+            showMessage('投票を送信しています...', 'loading');
+
+            try {
+                const response = await fetch(SHEET_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `vote=${optionValue}&action=vote`
+                });
+
+                const result = await response.text();
+                
+                if (response.ok) {
+                    localStorage.setItem('hasVoted', 'true');
+                    hasVoted = true;
+                    showMessage('投票ありがとうございました！');
+                    
+                    setTimeout(() => {
+                        loadResults();
+                        showResults();
+                    }, 1500);
+                } else {
+                    throw new Error('投票に失敗しました');
+                }
+            } catch (error) {
+                console.error('Vote error:', error);
+                showMessage('投票の送信に失敗しました。ネットワーク接続を確認してください。', 'error');
             }
-            votingData[optionValue]++;
-
-            localStorage.setItem('votingData', JSON.stringify(votingData));
-            localStorage.setItem('hasVoted', 'true');
-            hasVoted = true;
-
-            showMessage('投票ありがとうございました！');
-            
-            setTimeout(() => {
-                showResults();
-            }, 1500);
 
             return false;
         }
 
-        function showResults() {
-            document.getElementById('votingSection').style.display = 'none';
-            document.getElementById('resultsSection').style.display = 'block';
+        async function loadResults() {
+            try {
+                showMessage('最新結果を取得中...', 'loading');
+                
+                const response = await fetch(SHEET_URL + '?action=results');
+                const data = await response.json();
+                
+                displayResults(data);
+                document.getElementById('statusMessage').style.display = 'none';
+            } catch (error) {
+                console.error('Load results error:', error);
+                showMessage('結果の取得に失敗しました。オフラインの場合は後でお試しください。', 'error');
+                
+                // フォールバック：ローカルデータを表示
+                const localData = JSON.parse(localStorage.getItem('votingData')) || {};
+                if (Object.keys(localData).length > 0) {
+                    displayResults(localData);
+                }
+            }
+        }
 
+        function displayResults(votingData) {
             const resultsContainer = document.getElementById('resultsContainer');
             const totalVotesElement = document.getElementById('totalVotes');
 
@@ -340,17 +405,20 @@
 
             sortedResults.forEach(({ id, count, percentage }) => {
                 const data = catchcopyData[id];
-                resultsHTML += `
-                    <div class="result-item">
-                        <div class="result-text">${data.text}</div>
-                        <div class="result-bar">
-                            <div class="result-fill" style="width: ${percentage}%"></div>
-                            <div class="result-percentage">${count}票 (${percentage}%)</div>
+                if (data) {
+                    resultsHTML += `
+                        <div class="result-item">
+                            <div class="result-text">${data.text}</div>
+                            <div class="result-bar">
+                                <div class="result-fill" style="width: ${percentage}%"></div>
+                                <div class="result-percentage">${count}票 (${percentage}%)</div>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
             });
 
+            // 0票の項目も表示
             Object.keys(catchcopyData).forEach(id => {
                 if (!votingData[id]) {
                     const data = catchcopyData[id];
@@ -370,12 +438,14 @@
             totalVotesElement.textContent = `総投票数: ${totalVotes}票`;
         }
 
-        function resetVoting() {
-            if (confirm('すべての投票データをリセットしますか？この操作は取り消せません。')) {
-                localStorage.removeItem('votingData');
-                localStorage.removeItem('hasVoted');
-                location.reload();
-            }
+        function showResults() {
+            document.getElementById('votingSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        function showVoting() {
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('votingSection').style.display = 'block';
         }
 
         document.getElementById('votingForm').addEventListener('submit', function(e) {
@@ -383,17 +453,36 @@
             submitVote();
         });
 
-        if (hasVoted) {
-            document.getElementById('voteButton').disabled = true;
-            document.getElementById('voteButton').textContent = '投票済み';
-            showMessage('すでに投票済みです。結果を確認するには下のボタンをクリックしてください。', true);
-            
-            const showResultsBtn = document.createElement('button');
-            showResultsBtn.textContent = '結果を見る';
-            showResultsBtn.className = 'vote-button';
-            showResultsBtn.onclick = showResults;
-            document.getElementById('votingForm').appendChild(showResultsBtn);
-        }
+        // ページ読み込み時の処理
+        document.addEventListener('DOMContentLoaded', function() {
+            // まず結果を読み込む
+            loadResults();
+
+            if (hasVoted) {
+                document.getElementById('voteButton').disabled = true;
+                document.getElementById('voteButton').textContent = '投票済み';
+                showMessage('すでに投票済みです。結果を確認するには下のボタンをクリックしてください。', 'error');
+                
+                const showResultsBtn = document.createElement('button');
+                showResultsBtn.textContent = '結果を見る';
+                showResultsBtn.className = 'vote-button';
+                showResultsBtn.onclick = showResults;
+                document.getElementById('votingForm').appendChild(showResultsBtn);
+
+                const backToVotingBtn = document.createElement('button');
+                backToVotingBtn.textContent = '投票画面に戻る';
+                backToVotingBtn.className = 'refresh-button';
+                backToVotingBtn.onclick = showVoting;
+                document.getElementById('resultsSection').appendChild(backToVotingBtn);
+            }
+        });
+
+        // 30秒ごとに結果を自動更新
+        setInterval(() => {
+            if (document.getElementById('resultsSection').style.display === 'block') {
+                loadResults();
+            }
+        }, 30000);
     </script>
 </body>
 </html>
