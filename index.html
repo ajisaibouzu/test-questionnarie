@@ -294,6 +294,23 @@
             font-size: 0.9em;
             color: #666;
         }
+
+        .reset-button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 0.9em;
+            border-radius: 20px;
+            cursor: pointer;
+            margin: 10px auto 0;
+            transition: all 0.3s ease;
+        }
+
+        .reset-button:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -305,7 +322,7 @@
 
         <div class="voting-section" id="votingSection">
             <div class="vote-info">
-                <strong>📋 投票について:</strong> あなたの投票は即座に反映され、他の参加者と共有されます。結果は自動的に更新されます。
+                <strong>📋 投票について:</strong> あなたの投票は即座に反映され、URLを共有することで他の参加者の投票も確認できます。
             </div>
 
             <form id="votingForm">
@@ -340,18 +357,22 @@
         </div>
 
         <div class="results-section" id="resultsSection">
-            <div class="sync-indicator">リアルタイム同期</div>
+            <div class="sync-indicator">共有投票結果</div>
             <h2 class="results-title">📊 投票結果</h2>
             <div id="resultsContainer"></div>
             <div class="vote-count" id="totalVotes"></div>
-            <button class="refresh-button" onclick="loadAndDisplayResults()">最新結果を更新</button>
-            <button class="manual-sync" onclick="syncWithOthers()">他の投票者と同期</button>
+            
+            <button class="refresh-button" id="refreshButton">最新結果を更新</button>
+            <button class="manual-sync" id="syncButton">他の投票者と同期</button>
             
             <div class="share-section">
                 <h3>投票URLを共有</h3>
                 <div class="share-url" id="shareUrl"></div>
-                <button class="copy-button" onclick="copyUrl()">URLをコピー</button>
+                <button class="copy-button" id="copyButton">URLをコピー</button>
+                <button class="reset-button" id="resetButton">投票データをリセット</button>
             </div>
+
+            <button class="refresh-button" id="backButton" style="margin-top: 30px;">投票画面に戻る</button>
         </div>
     </div>
 
@@ -421,11 +442,8 @@
                 
                 showMessage('投票完了！ありがとうございました！', 'success');
                 
-                // URL parameter に投票データを追加
-                updateUrlWithVoteData();
-                
                 setTimeout(() => {
-                    displayResults(globalVotingData);
+                    displayResults();
                     showResults();
                 }, 1500);
                 
@@ -438,109 +456,76 @@
         }
 
         function updateUrlWithVoteData() {
-            // URLパラメータに投票データを追加（他のユーザーと共有するため）
-            const urlParams = new URLSearchParams(window.location.search);
-            const voteData = btoa(JSON.stringify(globalVotingData)); // Base64エンコード
-            urlParams.set('votes', voteData);
-            const newUrl = window.location.pathname + '?' + urlParams.toString();
-            history.replaceState(null, '', newUrl);
+            try {
+                const voteData = JSON.stringify(globalVotingData);
+                const encodedData = btoa(unescape(encodeURIComponent(voteData)));
+                const url = new URL(window.location.href.split('?')[0]);
+                url.searchParams.set('v', encodedData);
+                const newUrl = url.toString();
+                
+                // URLを更新
+                history.replaceState(null, '', newUrl);
+                return newUrl;
+            } catch (error) {
+                console.error('URL update error:', error);
+                return window.location.href;
+            }
         }
 
         function loadVotesFromUrl() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const voteData = urlParams.get('votes');
-            
-            if (voteData) {
-                try {
-                    const decodedVotes = JSON.parse(atob(voteData));
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const encodedData = urlParams.get('v');
+                
+                if (encodedData) {
+                    const decodedData = decodeURIComponent(escape(atob(encodedData)));
+                    const urlVoteData = JSON.parse(decodedData);
                     
-                    // 受信したデータと既存データをマージ
-                    for (let key in decodedVotes) {
-                        if (decodedVotes[key] > (globalVotingData[key] || 0)) {
-                            globalVotingData[key] = decodedVotes[key];
+                    // データをマージ（より大きい値を採用）
+                    let hasUpdates = false;
+                    for (let key in urlVoteData) {
+                        if (urlVoteData[key] > (globalVotingData[key] || 0)) {
+                            globalVotingData[key] = urlVoteData[key];
+                            hasUpdates = true;
                         }
                     }
                     
-                    localStorage.setItem('globalVotingData', JSON.stringify(globalVotingData));
-                    return true;
-                } catch (error) {
-                    console.error('URL vote data parsing error:', error);
+                    if (hasUpdates) {
+                        localStorage.setItem('globalVotingData', JSON.stringify(globalVotingData));
+                        return true;
+                    }
                 }
-            }
-            return false;
-        }
-
-        function loadAndDisplayResults() {
-            // URLから投票データを読み込み
-            const urlDataLoaded = loadVotesFromUrl();
-            
-            if (urlDataLoaded) {
-                showMessage('最新データを取得しました！', 'info');
-            }
-            
-            displayResults(globalVotingData);
-        }
-
-        function syncWithOthers() {
-            showMessage('他の投票者との同期を試行中...', 'loading');
-            
-            // 現在のデータをURLに反映
-            updateUrlWithVoteData();
-            
-            // URLから他のデータを読み込み
-            const synced = loadVotesFromUrl();
-            
-            if (synced) {
-                displayResults(globalVotingData);
-                showMessage('同期完了！最新の投票結果を表示中です。', 'success');
-            } else {
-                showMessage('新しいデータはありませんでした。', 'info');
+                return false;
+            } catch (error) {
+                console.error('URL parsing error:', error);
+                return false;
             }
         }
 
-        function displayResults(votingData) {
+        function displayResults() {
             const resultsContainer = document.getElementById('resultsContainer');
             const totalVotesElement = document.getElementById('totalVotes');
 
-            const totalVotes = Object.values(votingData).reduce((sum, count) => sum + count, 0);
+            const totalVotes = Object.values(globalVotingData).reduce((sum, count) => sum + count, 0);
 
             let resultsHTML = '';
             
-            const sortedResults = Object.entries(votingData)
-                .map(([id, count]) => ({ id, count, percentage: totalVotes > 0 ? (count / totalVotes * 100).toFixed(1) : 0 }))
-                .sort((a, b) => b.count - a.count);
-
-            sortedResults.forEach(({ id, count, percentage }) => {
-                const data = catchcopyData[id];
-                if (data) {
-                    const isMyVote = myVote === id ? ' 👈 あなたの投票' : '';
-                    resultsHTML += `
-                        <div class="result-item">
-                            <div class="result-text">${data.text}${isMyVote}</div>
-                            <div class="result-bar">
-                                <div class="result-fill" style="width: ${percentage}%"></div>
-                                <div class="result-percentage">${count}票 (${percentage}%)</div>
-                            </div>
-                        </div>
-                    `;
-                }
-            });
-
-            // 0票の項目も表示
+            // すべてのキャッチコピーを表示（重複なし）
             Object.keys(catchcopyData).forEach(id => {
-                if (!votingData[id] || votingData[id] === 0) {
-                    const data = catchcopyData[id];
-                    const isMyVote = myVote === id ? ' 👈 あなたの投票' : '';
-                    resultsHTML += `
-                        <div class="result-item">
-                            <div class="result-text">${data.text}${isMyVote}</div>
-                            <div class="result-bar">
-                                <div class="result-fill" style="width: 0%"></div>
-                                <div class="result-percentage">0票 (0%)</div>
-                            </div>
+                const data = catchcopyData[id];
+                const count = globalVotingData[id] || 0;
+                const percentage = totalVotes > 0 ? (count / totalVotes * 100).toFixed(1) : 0;
+                const isMyVote = myVote === id ? ' 👈 あなたの投票' : '';
+                
+                resultsHTML += `
+                    <div class="result-item">
+                        <div class="result-text">${data.text}${isMyVote}</div>
+                        <div class="result-bar">
+                            <div class="result-fill" style="width: ${percentage}%"></div>
+                            <div class="result-percentage">${count}票 (${percentage}%)</div>
                         </div>
-                    `;
-                }
+                    </div>
+                `;
             });
 
             resultsContainer.innerHTML = resultsHTML;
@@ -551,9 +536,9 @@
             document.getElementById('votingSection').style.display = 'none';
             document.getElementById('resultsSection').style.display = 'block';
             
-            // 共有URLを設定（投票データ付き）
-            updateUrlWithVoteData();
-            document.getElementById('shareUrl').textContent = window.location.href;
+            // 共有URLを更新
+            const shareUrl = updateUrlWithVoteData();
+            document.getElementById('shareUrl').textContent = shareUrl;
         }
 
         function showVoting() {
@@ -561,18 +546,62 @@
             document.getElementById('votingSection').style.display = 'block';
         }
 
-        function copyUrl() {
-            const url = window.location.href;
-            navigator.clipboard.writeText(url).then(() => {
-                showMessage('投票URLをコピーしました！他の人と共有してください。');
-            }).catch(() => {
-                showMessage('URLのコピーに失敗しました', 'error');
-            });
-        }
-
+        // イベントリスナーの設定
         document.getElementById('votingForm').addEventListener('submit', function(e) {
             e.preventDefault();
             submitVote();
+        });
+
+        document.getElementById('refreshButton').addEventListener('click', function() {
+            const updated = loadVotesFromUrl();
+            displayResults();
+            showMessage(updated ? '最新データを取得しました！' : '新しいデータはありませんでした。', 'info');
+        });
+
+        document.getElementById('syncButton').addEventListener('click', function() {
+            showMessage('他の投票者との同期を試行中...', 'loading');
+            const synced = loadVotesFromUrl();
+            displayResults();
+            updateUrlWithVoteData();
+            showMessage(synced ? '同期完了！最新の投票結果を表示中です。' : '新しいデータはありませんでした。', synced ? 'success' : 'info');
+        });
+
+        document.getElementById('copyButton').addEventListener('click', function() {
+            const url = updateUrlWithVoteData();
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showMessage('投票URLをコピーしました！他の人と共有してください。', 'success');
+                }).catch(() => {
+                    showMessage('URLのコピーに失敗しました', 'error');
+                });
+            } else {
+                // フォールバック
+                const textArea = document.createElement('textarea');
+                textArea.value = url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showMessage('投票URLをコピーしました！', 'success');
+            }
+        });
+
+        document.getElementById('resetButton').addEventListener('click', function() {
+            if (confirm('すべての投票データをリセットしますか？この操作は取り消せません。')) {
+                localStorage.clear();
+                globalVotingData = { "1": 0, "2": 0, "3": 0 };
+                hasVoted = false;
+                myVote = null;
+                history.replaceState(null, '', window.location.href.split('?')[0]);
+                showMessage('投票データをリセットしました。', 'info');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            }
+        });
+
+        document.getElementById('backButton').addEventListener('click', function() {
+            showVoting();
         });
 
         // ページ読み込み時の処理
@@ -581,7 +610,7 @@
             loadVotesFromUrl();
             
             // 結果を表示
-            displayResults(globalVotingData);
+            displayResults();
 
             if (hasVoted) {
                 document.getElementById('voteButton').disabled = true;
@@ -591,26 +620,11 @@
                 const showResultsBtn = document.createElement('button');
                 showResultsBtn.textContent = '結果を見る';
                 showResultsBtn.className = 'vote-button';
-                showResultsBtn.onclick = showResults;
+                showResultsBtn.style.marginTop = '10px';
+                showResultsBtn.addEventListener('click', showResults);
                 document.getElementById('votingForm').appendChild(showResultsBtn);
-
-                const backToVotingBtn = document.createElement('button');
-                backToVotingBtn.textContent = '投票画面に戻る';
-                backToVotingBtn.className = 'refresh-button';
-                backToVotingBtn.onclick = showVoting;
-                document.getElementById('resultsSection').appendChild(backToVotingBtn);
             }
         });
-
-        // 5分ごとにURLから最新データをチェック
-        setInterval(() => {
-            if (document.getElementById('resultsSection').style.display === 'block') {
-                const updated = loadVotesFromUrl();
-                if (updated) {
-                    displayResults(globalVotingData);
-                }
-            }
-        }, 300000); // 5分
     </script>
 </body>
 </html>
